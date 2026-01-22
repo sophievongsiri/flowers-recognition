@@ -1,0 +1,104 @@
+#Random Forest Grid Search based on different PCA and parameters
+
+datasets = [
+    ("PCA10", X_pca10),
+    ("PCA50", X_pca50),
+    ("PCA200", X_pca200),
+    ("PCA400", X_pca400),
+    ("Scaled", X_scaled),
+    ("Original", X_train)
+]
+
+depths = [3, 6, 9, 12, 15, 18]
+nodes = [10, 20, 30, 40, 50]
+
+best_val = 0
+
+for depth in depths:
+    for node in nodes:
+        for name, data in datasets:
+            forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=node, max_depth = depth, random_state = 42)
+
+            scores = cross_validate(forest, data, y_train, cv=4, return_train_score=True)
+
+            train_mean = scores["train_score"].mean()
+            val_mean = scores["test_score"].mean()
+
+            print(f"{name}: depth={depth}, node={node}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+            if val_mean > best_val:
+                best_val = val_mean
+                best_train = train_mean
+                best_dataset = name
+                best_depth = depth
+                best_node = node
+
+       #print(f"New Best: {best_dataset}, depth={best_depth}, node={best_node}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+print("Gridsearch complete. Best: ")
+print(f"Data: {best_dataset}, depth={best_depth}, node={best_node}, Train={best_train:.4f}, Val={best_val:.4f}")
+
+
+#iterate over different random forest parameters to determine optimal values using 4 fold cross validation
+#evaluate based on accuracy, auc of roc, and f1
+data = [X_pca10, X_pca50]
+data_names = ["PCA 10", "PCA 50"]
+nodes = [5, 10, 15, 18, 20, 22, 25, 30, 35]
+colors = ['blue', 'red', 'green', 'orange', 'pink', 'yellow', 'purple']
+x=0
+
+plt.figure(figsize=(10, 6))
+
+for i, dataset in enumerate(data):
+    train_accuracies = []
+    val_accuracies = []
+    auc_accuracies = []
+    f1_accuracies = []
+    labels = []
+
+    for node in nodes:
+        forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=node, random_state = 42)
+        scores = cross_validate(forest, dataset, y_train, cv=4, scoring={'accuracy': 'accuracy','roc_auc': 'roc_auc_ovr','f1': 'f1_macro'}, return_train_score=True)
+
+        train_mean = scores['train_accuracy'].mean()
+        val_mean = scores['test_accuracy'].mean()
+        auc = scores["test_roc_auc"].mean()
+        f1 = scores["test_f1"].mean()
+
+
+        train_accuracies.append(train_mean)
+        val_accuracies.append(val_mean)
+        auc_accuracies.append(auc)
+        f1_accuracies.append(f1)
+
+        print(f"Dataset={data_names[i]}, Node={node} Train={train_mean:.4f}, Val={val_mean:.4f}, Difference={train_mean-val_mean:.4f}, auc={auc:.4f}, f1={f1:.4f}")
+
+    plt.plot(nodes, val_accuracies, label = f"{data_names[i]} (Val)", color=colors[x], marker = 'o')
+    plt.plot(nodes, train_accuracies, label = f"{data_names[i]} (Train)", color=colors[x], marker = 'x')
+    plt.plot(nodes, auc_accuracies, label = f"{data_names[i]} AUC of ROC", color = colors[x], linestyle = "--" )
+    plt.plot(nodes, f1_accuracies, label = f"{data_names[i]} F1", color = colors[x], linestyle = ":")
+    x+=1
+
+plt.title("RF: Datasets & Nodes")
+plt.ylabel("Score")
+plt.xlabel("Nodes")
+plt.grid(True)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.show()
+
+
+#continue evalution, looking at each fold score to determine overfitting
+colors = ["red", "green", "purple", "yellow", "blue", "red", "orange", "pink", "black", "brown"]
+x=0
+nodes = [10, 16, 20, 25, 30]
+for i in nodes:
+  forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=i, random_state = 42)
+  scores = cross_val_score(forest, X_pca50, y_train, cv=4)
+  print(f"{i} Nodes: {scores}")
+  plt.plot(range(1,5), scores, label = f"Nodes={i}", color = colors[x])
+  x+=1
+plt.title("Forest 4 Fold Scores")
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xlabel("Fold")
+plt.ylabel("Accuracy")

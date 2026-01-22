@@ -1,0 +1,154 @@
+#SVM gridsearch using cross-validation iterating over differnt gammas, Cs, PCAs, normalization 
+
+datasets = [
+    ("PCA10", X_pca10),
+    ("PCA50", X_pca50),
+    ("PCA200", X_pca200),
+    ("PCA400", X_pca400),
+    ("Scaled", X_scaled),
+    ("Original", X_train)
+]
+
+gammas = [1e-5, 1e-4, 1e-3, 1e-2, 0.1, 1, 10]
+Cs = [.01, .1, 1, 10, 20]
+
+best_val = 0
+best_config = None
+
+for gamma in gammas:
+    for C in Cs:
+        for name, data in datasets:
+
+            svm = SVC(kernel='rbf', C=C, gamma=gamma)
+
+            scores = cross_validate(svm, data, y_train, cv=4, return_train_score=True)
+
+            train_mean = scores["train_score"].mean()
+            val_mean = scores["test_score"].mean()
+
+            print(f"{name}: gamma={gamma}, C={C}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+            if val_mean > best_val:
+                best_val = val_mean
+                best_train = train_mean
+                best_dataset = name
+                best_gamma = gamma
+                best_C = C
+
+                print(f"New Best: {name}, gamma={gamma}, C={C}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+print("Best: ")
+print(f"Data: {best_dataset}, Gamma={best_gamma}, C={best_C}, Train={best_train:.4f}, Val={best_val:.4f}")
+
+
+#SVM gridsearch continued: iterating over more specific Cs and gammas to determine optimal values
+gammas = [.0001]
+Cs = range(1,30)
+colors = ["blue", "red", "pink", "green", "orange", "purple", "yellow"]
+x = 0
+
+for i, g in enumerate(gammas):
+    train_accuracies = []
+    val_accuracies = []
+    for c in Cs:
+        svm = SVC(kernel='rbf', C = c, gamma = g)
+        svm.fit(X_pca50, y_train)
+        scores = cross_validate(svm, X_pca50, y_train, cv=4, return_train_score=True)
+
+        train_mean = scores['train_score'].mean()
+        val_mean = scores['test_score'].mean()
+
+        train_accuracies.append(train_mean)
+        val_accuracies.append(val_mean)
+
+        print(f"C={c}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+    plt.plot(Cs, val_accuracies, label = f"G = .0001 (Val)", linestyle="--", color=colors[i], marker='o')
+    plt.plot(Cs, train_accuracies, label = f"G = .0001 (Train)", linestyle="-", color=colors[i], marker='x')
+
+gammas = [.00001]
+x = 1
+
+for i, g in enumerate(gammas):
+    train_accuracies = []
+    val_accuracies = []
+    for c in Cs:
+        svm = SVC(kernel='rbf', C = c, gamma = g)
+        svm.fit(X_pca50, y_train)
+        scores = cross_validate(svm, X_pca50, y_train, cv=4, return_train_score=True)
+
+        train_mean = scores['train_score'].mean()
+        val_mean = scores['test_score'].mean()
+
+        train_accuracies.append(train_mean)
+        val_accuracies.append(val_mean)
+
+        print(f"C={c}, Train={train_mean:.4f}, Val={val_mean:.4f}, Difference={train_mean-val_mean:.4f}")
+
+    plt.plot(Cs, val_accuracies, label = f"G = .00001 (Val)", linestyle="--", color=colors[x], marker='o')
+    plt.plot(Cs, train_accuracies, label = f"G = .00001 (Train)", linestyle="-", color=colors[x], marker='x')
+
+plt.title("SVM Accuracies: PCA50 with Gamma = .0001")
+plt.ylabel("Accuracy")
+plt.xlabel("C Value")
+plt.legend(bbox_to_anchor=(1,1))
+plt.show()
+
+
+
+#analyze optimal values using accuracy, auc of roc, and f1
+gammas = [0.0001, 0.00001]
+Cs = range(1,30)
+colors = ['blue', 'red', 'green', 'orange', 'pink', 'yellow', 'purple']
+x=0
+
+for i, g in enumerate(gammas):
+    train_accuracies, val_accuracies, auc_accuracies, f1_accuracies = [], [], [], []
+    for c in Cs:
+        svm = SVC(kernel='rbf', C=c, gamma=g, probability=True)
+        scores = cross_validate(
+            svm, X_pca50, y_train, cv=4,
+            scoring={'accuracy': 'accuracy','roc_auc': 'roc_auc_ovr','f1': 'f1_macro'},
+            return_train_score=True
+        )
+
+        train_mean = scores['train_accuracy'].mean()
+        val_mean = scores['test_accuracy'].mean()
+        auc = scores["test_roc_auc"].mean()
+        f1 = scores["test_f1"].mean()
+
+        train_accuracies.append(train_mean)
+        val_accuracies.append(val_mean)
+        auc_accuracies.append(auc)
+        f1_accuracies.append(f1)
+        print(f"Gamma={g}, C={c}, Train={train_mean:.4f}, Val={val_mean:.4f}, Difference={train_mean-val_mean:.4f}, auc={auc:.4f}, f1={f1:.4f}")
+
+    plt.plot(Cs, val_accuracies, linestyle="--", label=f"G={g} (Val)", color = colors[x])
+    plt.plot(Cs, train_accuracies, linestyle="-", label=f"G={g} (Train)", color = colors[x])
+    x+=1
+    plt.plot(Cs, auc_accuracies, label=f"G={g} AUC", color = colors[x])
+    x+=1
+    plt.plot(Cs, f1_accuracies, label=f"G={g} F1", color = colors[x])
+    x+=1
+
+plt.title("SVM: PCA50 for Different Gamma Values")
+plt.xlabel("C Value")
+plt.ylabel("Score")
+plt.legend(bbox_to_anchor=(1,1))
+plt.show()
+
+
+#evaluate all 4-fold values to determine overfitting
+colors = ["red", "green", "purple", "yellow", "blue", "red", "orange", "pink", "black", "brown"]
+x=0
+Cs = [5, 10, 16, 20, 25]
+for i in Cs:
+  svm = SVC(gamma=.00001, C = i, kernel = 'rbf', probability = True)
+  scores = cross_val_score(svm, X_pca50, y_train, cv=4)
+  print(f"{i} Neighbors: {scores}")
+  plt.plot(range(1,5), scores, label = f"C={i}", color = colors[x])
+  x+=1
+plt.title("SVM 4 Fold Scores")
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xlabel("Fold")
+plt.ylabel("Accuracy")

@@ -1,0 +1,64 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import cross_val_score, cross_val_predict
+from sklearn.model_selection import cross_validate
+from sklearn.model_selection import ShuffleSplit
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.feature_selection import f_classif, SelectKBest, mutual_info_classif
+from sklearn.metrics import roc_auc_score, f1_score
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.ensemble import StackingClassifier, AdaBoostClassifier
+from sklearn.linear_model import LogisticRegression
+
+X_train = pd.read_csv("flower_train_features.csv")
+y_train = pd.read_csv("flower_train_labels.csv")
+
+y_train = y_train.to_numpy()
+y_train = y_train.ravel()
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_train)
+
+#read in datasets
+X_test = pd.read_csv("flower_test_features (1).csv")
+print(X_test.shape)
+
+X_test_scaled = scaler.fit_transform(X_test)
+
+#apply PCA 10, 50, 200, 400 to experiment with different classifiers
+
+pca10 = PCA(n_components = 10, random_state = 42)
+X_pca10 = pca10.fit_transform(X_scaled)
+
+pca50 = PCA(n_components=50, random_state = 42)
+X_pca50 = pca50.fit_transform(X_scaled)
+X_test50  = pca50.transform(X_test_scaled)
+print(X_pca50.shape)
+print(X_test50.shape)
+
+pca200 = PCA(n_components=200, random_state = 42)
+X_pca200 = pca200.fit_transform(X_scaled)
+
+pca400 = PCA(n_components=400, random_state = 42)
+X_pca400 = pca400.fit_transform(X_scaled)
+
+X_var = VarianceThreshold(threshold=.2).fit_transform(X_train)
+print(X_var.shape)
+
+X_10Best = SelectKBest(f_classif, k=10).fit_transform(X_train, y_train)
+print(X_10Best.shape)

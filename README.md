@@ -26,5 +26,5 @@ Compared confusion matrices and common misclassifications between chosen classif
 Used Logistic Regression as the meta model
 Iterated over different parameters to determine best values for stacking
 
-Conclusion
+Conclusion:
 Stacking (KNN & MLP) was the best model for data as it maintained high accuracy and will limit overfitting.

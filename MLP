@@ -1,0 +1,107 @@
+#iterate over different MLP parameters to determine optimal values using 4 fold cross validation
+
+datasets = [
+    ("PCA10", X_pca10),
+    ("PCA50", X_pca50),
+    ("PCA200", X_pca200),
+    ("PCA400", X_pca400),
+    ("Scaled", X_scaled),
+    ("Original", X_train)
+]
+
+hidden_layers = [[50], [30, 30], [80], [50, 50], [100], [60, 70], [150]]
+alphas = [.3, .8, 1, 1.2, 1.5, 1.9, 2.1, 2.5]
+
+best_val = 0
+
+for layer in hidden_layers:
+    for alpha in alphas:
+        for name, data in datasets:
+            mlp = MLPClassifier(hidden_layer_sizes=layer, alpha=alpha, max_iter=500, random_state=42)
+
+            scores = cross_validate(mlp, data, y_train, cv=4, return_train_score=True)
+
+            train_mean = scores["train_score"].mean()
+            val_mean = scores["test_score"].mean()
+
+            print(f"{name}: hidden layer={layer}, alpha={alpha}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+            if val_mean > best_val:
+                best_val = val_mean
+                best_train = train_mean
+                best_dataset = name
+                best_hl = layer
+                best_alpha = alpha
+
+        #print(f"New Best: {best_dataset}, depth={best_depth}, node={best_node}, Train={train_mean:.4f}, Val={val_mean:.4f}")
+
+print("Gridsearch complete. Best: ")
+print(f"Data: {best_dataset}, hidden layer={best_hl}, alpha={best_alpha}, Train={best_train:.4f}, Val={best_val:.4f}")
+
+
+
+#MLP Smaller Gridserach w/ Pipeline & Additional Measures
+pipelines = [
+    ("PCA10", make_pipeline(StandardScaler(), PCA(n_components=10), MLPClassifier())),
+    ("Original", make_pipeline(MLPClassifier()))
+]
+
+hidden_layers = [[60], [40, 50], [70, 40], [130], [180]]
+alphas = [3.7, 4.1, 4.5, 4.9, 5.4, 5.8]
+
+best_val = -1
+best_dataset = None
+best_hl = None
+best_a = None
+set_auc = None
+set_f1 = None
+
+for layer in hidden_layers:
+    for alpha in alphas:
+        for name, pipe in pipelines:
+            pipe.set_params(mlpclassifier__hidden_layer_sizes=layer, mlpclassifier__alpha=alpha, mlpclassifier__max_iter=500, mlpclassifier__random_state = 42)
+            scores = cross_validate(
+              pipe,
+              X_train,
+              y_train,
+              cv=4,
+              scoring={'accuracy': 'accuracy','roc_auc': 'roc_auc_ovr','f1': 'f1_macro'},
+              return_train_score=True
+            )
+
+
+            train_mean = scores["train_accuracy"].mean()
+            val_mean = scores["test_accuracy"].mean()
+            auc = scores["test_roc_auc"].mean()
+            f1 = scores["test_f1"].mean()
+
+            print(f"{name}: layer={layer}, alpha = {alpha}, Train={train_mean:.4f}, Val={val_mean:.4f}, AUC={auc:.4f}, F1={f1:.4f}")
+
+            if val_mean > best_val:
+                best_val = val_mean
+                best_train = train_mean
+                best_dataset = name
+                best_hl = layer
+                best_alpha = alpha
+                set_auc = auc
+                set_f1 = f1
+
+print("Gridsearch complete. Best: ")
+print(f"Data: {best_dataset}, hidden layer={best_hl}, alpha={best_alpha}, Train={best_train:.4f}, Val={best_val:.4f}, AUC={set_auc:.4f}, F={set_f1:.4f}")
+
+
+#evaluate each 4-fold to determine if overfitting 
+colors = ["red", "green", "purple", "yellow", "blue", "red", "orange", "pink", "black", "brown"]
+x=0
+alpha = [15, 20, 25, 30, 35]
+for i in alpha:
+  mlp = MLPClassifier(hidden_layer_sizes=[80], alpha=i, max_iter=500, random_state=42)
+  scores = cross_val_score(mlp, X_train, y_train, cv=4)
+  print(f"{i} Alpha: {scores}")
+  plt.plot(range(1,5), scores, label = f"Alpha={i}", color = colors[x])
+  x+=1
+plt.title("MLP 4 Fold Scores")
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xlabel("Fold")
+plt.ylabel("Accuracy")
+

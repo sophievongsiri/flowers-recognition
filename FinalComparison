@@ -1,0 +1,100 @@
+#compare all classifier's accuracies
+
+knn = KNeighborsClassifier(n_neighbors=54)
+pred_knn = cross_val_predict(knn, X_pca50, y_train, cv=4)
+knn_acc = accuracy_score(y_train, pred_knn)
+print(f"KNN CV Accuracy: {knn_acc:.4f}")
+
+
+svm = SVC(gamma=0.00001, C=16, kernel="rbf", probability = True)
+pred_svm = cross_val_predict(svm, X_pca50, y_train, cv=4)
+svm_acc = accuracy_score(y_train, pred_svm)
+print(f"\n\nSVM CV Accuracy: {svm_acc:.4f}")
+
+rf = RandomForestClassifier(n_estimators=100, max_leaf_nodes=20, max_depth=None, random_state=42)
+pred_rf = cross_val_predict(rf, X_pca50, y_train, cv=4)
+rf_acc = accuracy_score(y_train, pred_rf)
+print(f"\n\nRandom Forest CV Accuracy: {rf_acc:.4f}")
+
+
+mlp = MLPClassifier(hidden_layer_sizes=[80], alpha=25, max_iter=500, random_state=42)
+pred_mlp = cross_val_predict(mlp, X_train, y_train, cv=4)
+mlp_acc = accuracy_score(y_train, pred_mlp)
+print(f"\n\nMLP CV Accuracy: {mlp_acc:.4f}")
+
+
+base_model = DecisionTreeClassifier(max_depth=1, random_state=42)
+adaboost_clf = AdaBoostClassifier(
+    estimator=base_model,
+    n_estimators=500,
+    learning_rate=0.5,
+    random_state=42
+)
+pipe_adaboost = Pipeline([
+    ('normalization', StandardScaler()),
+    ('adaboost', adaboost_clf)
+])
+pred_ada = cross_val_predict(adaboost_clf, X_train, y_train, cv=4)
+ada_acc = accuracy_score(y_train, pred_ada)
+print(f"\nAdaboost CV Accuracy: {ada_acc:.4f}")
+
+
+mlp = MLPClassifier(hidden_layer_sizes = [80], alpha = 25, random_state = 42, max_iter=500)
+knn_pipeline = Pipeline([("scaler", StandardScaler()), ("pca", PCA(n_components=50)), ("knn", KNeighborsClassifier(n_neighbors=54))])
+meta_model = LogisticRegression(C=1)
+stacking_clf = StackingClassifier(estimators=[('model1', knn_pipeline), ('model2', mlp)], final_estimator=meta_model)
+pred_stack = cross_val_predict(stacking_clf, X_train, y_train, cv=4)
+stack_acc = accuracy_score(y_train, pred_stack)
+print(f"\n\nStacking CV Accuracy: {stack_acc:.4f}")
+
+
+svm = SVC(gamma=0.00001, C=16, kernel='rbf', probability=True)
+knn = KNeighborsClassifier(n_neighbors=54)
+meta_model = LogisticRegression(C=1)
+stacking_clf = StackingClassifier(
+    estimators=[('knn', knn), ('svm', svm)],
+    final_estimator=meta_model
+)
+pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('pca', PCA(n_components=50, random_state=42)),
+    ('stacking', stacking_clf)
+])
+pred_pipe = cross_val_predict(pipe, X_train, y_train, cv=4)
+pipe_acc = accuracy_score(y_train, pred_pipe)
+print(f"\n\nStacking (KNN & SVM)CV Accuracy: {pipe_acc:.4f}")
+
+plt.figure(figsize=(12,8))
+plt.bar(["KNN", "SVM", "RF", "MLP", "AdaBoost", "Stack: KNN&MLP", "Stack: KNN&SVM"], [knn_acc, svm_acc, rf_acc, mlp_acc, ada_acc, stack_acc, pipe_acc])
+plt.title("4-Fold Accuracies")
+plt.xlabel("Classifier")
+plt.ylabel("Validation Accuracy")
+plt.ylim(.76, .9)
+
+#indentify number of confident misclassifications for top two models (Stacking KNN & MLP, Stacking SVM & KNN)
+wrong_knn = 0
+wrong_svm = 0
+wrong_mlp = 0
+wrong_stack = 0
+wrong_pipe = 0
+
+for i in range(len(y_train)):
+  if (y_train[i] != pred_knn[i]) and (max(knn_proba[i])>.6):
+    wrong_knn+=1
+  if y_train[i] != pred_svm[i] and max(svm_proba[i])>.6:
+    wrong_svm+=1
+  if y_train[i] != pred_mlp[i] and max(mlp_proba[i])>.6:
+    wrong_mlp+=1
+  if y_train[i] != pred_stack[i] and max(stack_proba[i])>.6:
+    wrong_stack+=1
+  if y_train[i] != pred_pipe[i] and max(pipe_proba[i])>.6:
+    wrong_pipe+=1
+
+plt.figure(figsize=(12,8))
+classifiers = ["Stack: KNN & MLP", "Stack: KNN & SVM"]
+plt.bar(classifiers, [wrong_stack, wrong_pipe])
+plt.title("# Confident Misclassifications")
+
+
+#BEST MODEL: STACKING KNN & MLP
+

@@ -1,0 +1,298 @@
+#compare confusion matrices of each classifer to determine which would be best for the ensembles
+
+knn = KNeighborsClassifier(n_neighbors=54)
+pred_knn = cross_val_predict(knn, X_pca50, y_train, cv=4)
+
+knn_acc = accuracy_score(y_train, pred_knn)
+knn_conf = confusion_matrix(y_train, pred_knn)
+
+print(f"KNN CV Accuracy: {knn_acc:.4f}")
+print("KNN Confusion Matrix:\n", knn_conf, "\n")
+
+knn.fit(X_pca50, y_train)
+knn_proba = knn.predict_proba(X_pca50)
+mistakes = 0
+
+for i in range(len(y_train)):
+    if y_train[i] != pred_knn[i]:
+        print(f"Index: {i}, Actual: {y_train[i]}, Predicted: {pred_knn[i]}, Confidence: {max(knn_proba[i]):.4f}")
+        mistakes +=1
+    if mistakes > 5:
+      break
+
+
+svm = SVC(gamma=0.00001, C=16, kernel="rbf", probability = True)
+pred_svm = cross_val_predict(svm, X_pca50, y_train, cv=4)
+
+svm_acc = accuracy_score(y_train, pred_svm)
+svm_conf = confusion_matrix(y_train, pred_svm)
+
+print(f"\n\nSVM CV Accuracy: {svm_acc:.4f}")
+print("SVM Confusion Matrix:\n", svm_conf, "\n")
+
+svm.fit(X_pca50, y_train)
+svm_proba = svm.predict_proba(X_pca50)
+mistakes = 0
+
+for i in range(len(y_train)):
+    if y_train[i] != pred_svm[i]:
+        print(f"Index: {i}, Actual: {y_train[i]}, Predicted: {pred_svm[i]}, Confidence: {max(svm_proba[i]):.4f}")
+        mistakes +=1
+    if mistakes > 5:
+      break
+
+rf = RandomForestClassifier(n_estimators=100, max_leaf_nodes=20, max_depth=None, random_state=42)
+pred_rf = cross_val_predict(rf, X_pca50, y_train, cv=4)
+
+rf_acc = accuracy_score(y_train, pred_rf)
+rf_conf = confusion_matrix(y_train, pred_rf)
+
+print(f"\n\nRandom Forest CV Accuracy: {rf_acc:.4f}")
+print("RF Confusion Matrix:\n", rf_conf, "\n")
+
+rf.fit(X_pca50, y_train)
+rf_proba = rf.predict_proba(X_pca50)
+mistakes = 0
+
+for i in range(len(y_train)):
+    if y_train[i] != pred_rf[i]:
+        print(f"Index: {i}, Actual: {y_train[i]}, Predicted: {pred_rf[i]}, Confidence: {max(rf_proba[i]):.4f}")
+        mistakes +=1
+    if mistakes > 5:
+      break
+
+
+mlp = MLPClassifier(hidden_layer_sizes=[80], alpha=25, max_iter=500, random_state=42)
+pred_mlp = cross_val_predict(mlp, X_train, y_train, cv=4)
+
+mlp_acc = accuracy_score(y_train, pred_mlp)
+mlp_conf = confusion_matrix(y_train, pred_mlp)
+
+print(f"\n\nMLP CV Accuracy: {mlp_acc:.4f}")
+print("MLP Confusion Matrix:\n", mlp_conf)
+
+mlp.fit(X_train, y_train)
+mlp_proba = mlp.predict_proba(X_train)
+mistakes = 0
+
+for i in range(len(y_train)):
+    if y_train[i] != pred_mlp[i]:
+        print(f"Index: {i}, Actual: {y_train[i]}, Predicted: {pred_mlp[i]}, Confidence: {max(mlp_proba[i]):.4f}")
+        mistakes +=1
+    if mistakes > 5:
+      break
+
+
+knn_svm, knn_rf, knn_mlp, svm_rf, svm_mlp, rf_mlp = 0
+
+for i in range(len(y_train)):
+    if pred_knn[i] != y_train[i]:
+      if pred_knn[i] == pred_svm[i]:
+        knn_svm +=1
+      elif pred_knn[i] == pred_rf[i]:
+        knn_rf+=1
+      elif pred_knn[i] == pred_mlp[i]:
+        knn_mlp+=1
+    if pred_svm[i] != y_train[i]:
+      if pred_svm[i] == pred_rf[i]:
+        svm_rf+=1
+      elif pred_svm[i] == pred_mlp[i]:
+        svm_mlp +=1
+    if pred_rf != y_train[i]:
+      if pred_rf[i] == pred_mlp[i]:
+        rf_mlp+=1
+
+#continue comparison to see how many shared samples between each classifier
+knn_svm = 0
+knn_rf = 0
+knn_mlp = 0
+svm_rf = 0
+svm_mlp = 0
+rf_mlp = 0
+
+for i in range(len(y_train)):
+    if pred_knn[i] != y_train[i]:
+      if pred_knn[i] == pred_svm[i]:
+        knn_svm +=1
+      elif pred_knn[i] == pred_rf[i]:
+        knn_rf+=1
+      elif pred_knn[i] == pred_mlp[i]:
+        knn_mlp+=1
+    if pred_svm[i] != y_train[i]:
+      if pred_svm[i] == pred_rf[i]:
+        svm_rf+=1
+      elif pred_svm[i] == pred_mlp[i]:
+        svm_mlp +=1
+    if pred_rf[i] != y_train[i]:
+      if pred_rf[i] == pred_mlp[i]:
+        rf_mlp+=1
+
+plt.figure(figsize=(12, 8))
+comparisons = ["KNN & SVM", "KNN &RF", "KNN & MLP", "SVM & RF", "SVM & MLP", "RF & MLP"]
+plt.barh(comparisons, [knn_svm, knn_rf, knn_mlp, svm_rf, svm_mlp, rf_mlp])
+plt.title("Misclassified Samples Comparisons")
+plt.xlabel("Classifiers")
+plt.ylabel("Misclassified Samples")
+
+#using different learning raes for adaboost
+mean_train_scores = []
+mean_val_scores = []
+
+base_model = DecisionTreeClassifier(max_depth=1, random_state=42)
+rates = [.1, .5, 1, 1.5]
+
+for r in rates:
+    adaboost_clf = AdaBoostClassifier(
+        estimator=base_model,
+        n_estimators=500,
+        learning_rate=r,
+        random_state=42
+    )
+
+    pipe_adaboost = Pipeline([
+        ('normalization', StandardScaler()),
+        ('adaboost', adaboost_clf)
+    ])
+
+    kf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    train_scores, val_scores = [], []
+
+    for i, (tr_idx, val_idx) in enumerate(kf.split(X_train, y_train)):
+        X_tr, X_val = X_train.iloc[tr_idx], X_train.iloc[val_idx]
+        y_tr, y_val = y_train[tr_idx], y_train[val_idx]
+
+        pipe_adaboost.fit(X_tr, y_tr)
+        train_acc = pipe_adaboost.score(X_tr, y_tr)
+        train_scores.append(train_acc)
+
+        val_acc = pipe_adaboost.score(X_val, y_val)
+        val_scores.append(val_acc)
+
+        print(f"LR = {r}, Fold {i+1} Training Accuracy: {train_acc:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+
+    mean_train = np.mean(train_scores)
+    mean_val = np.mean(val_scores)
+    mean_train_scores.append(mean_train)
+    mean_val_scores.append(mean_val)
+
+    print(f"Mean Training Accuracy: {mean_train:.4f}")
+    print(f"Mean Validation Accuracy: {mean_val:.4f}")
+
+plt.plot(rates, mean_train_scores, label='Training Accuracy', marker='o', color='blue')
+plt.plot(rates, mean_val_scores, label='Validation Accuracy', marker='o', color='red')
+plt.xlabel('Rate')
+plt.ylabel('Accuracy')
+plt.title('Adaboost CV Accuracy for Different Learning Ratess')
+plt.legend()
+plt.show()
+
+#iterating over different C values for a logistic regression stacking with KNN & MLP (using previously identified optimal values)
+mlp = MLPClassifier(hidden_layer_sizes = [80], alpha = 25, random_state = 42, max_iter=500)
+knn_pipeline = Pipeline([("scaler", StandardScaler()), ("pca", PCA(n_components=50)), ("knn", KNeighborsClassifier(n_neighbors=54))])
+
+C_values = [0.01, 0.1, 1, 10, 100]
+
+mean_train_scores = []
+mean_val_scores = []
+
+for C in C_values:
+
+    meta_model = LogisticRegression(C=C, random_state=42)
+
+    stacking_clf = StackingClassifier(estimators=[('model1', knn_pipeline), ('model2', mlp)], final_estimator=meta_model)
+
+    kf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    train_scores, val_scores = [], []
+
+    for i, (tr_idx, val_idx) in enumerate(kf.split(X_train, y_train)):
+        X_tr, X_val = X_train.iloc[tr_idx], X_train.iloc[val_idx]
+        y_tr, y_val = y_train[tr_idx], y_train[val_idx]
+
+        stacking_clf.fit(X_tr, y_tr)
+        train_acc = stacking_clf.score(X_tr, y_tr)
+        train_scores.append(train_acc)
+
+        val_acc = stacking_clf.score(X_val, y_val)
+        val_scores.append(val_acc)
+
+        print(f"C = {C}, Fold {i+1} Training Accuracy: {train_acc:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+
+    mean_train = np.mean(train_scores)
+    mean_val = np.mean(val_scores)
+    mean_train_scores.append(mean_train)
+    mean_val_scores.append(mean_val)
+
+    print(f"Mean Training Accuracy: {mean_train:.4f}")
+    print(f"Mean Validation Accuracy: {mean_val:.4f}")
+
+plt.plot(C_values, mean_train_scores, label='Training Accuracy', marker='o', color='blue')
+plt.plot(C_values, mean_val_scores, label='Validation Accuracy', marker='o', color='red')
+plt.xscale('log')
+plt.xlabel('C')
+plt.ylabel('Accuracy')
+plt.title('Stacking (KNN & MLP) CV Accuracy for Different Cs')
+plt.legend()
+plt.show()
+
+
+#iterating over different C values for a logistic regression stacking with KNN & SVM (using previously identified optimal values)
+svc = SVC(gamma=.00001, C=16, kernel='rbf', probability=True)
+knn = KNeighborsClassifier(n_neighbors=54)
+
+C_values = [0.01, 0.1, 1, 10, 100]
+
+mean_train_scores = []
+mean_val_scores = []
+
+for C in C_values:
+
+    meta_model = LogisticRegression(C=C, random_state=42)
+
+    stacking_clf = StackingClassifier(
+        estimators=[('model1', knn), ('model2', svc)],
+        final_estimator=meta_model,
+    )
+
+    pipe = Pipeline([
+        ('scaler', StandardScaler()),
+        ('pca', PCA(n_components=50, random_state=42)),
+        ('stacking', stacking_clf)
+    ])
+
+    kf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    train_scores, val_scores = [], []
+
+    for i, (tr_idx, val_idx) in enumerate(kf.split(X_train, y_train)):
+        X_tr, X_val = X_train.iloc[tr_idx], X_train.iloc[val_idx]
+        y_tr, y_val = y_train[tr_idx], y_train[val_idx]
+
+        pipe.fit(X_tr, y_tr)
+        train_acc = pipe.score(X_tr, y_tr)
+        train_scores.append(train_acc)
+
+        val_acc = pipe.score(X_val, y_val)
+        val_scores.append(val_acc)
+
+        print(f"C = {C}, Fold {i+1} Training Accuracy: {train_acc:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+
+    mean_train = np.mean(train_scores)
+    mean_val = np.mean(val_scores)
+    mean_train_scores.append(mean_train)
+    mean_val_scores.append(mean_val)
+
+    print(f"Mean Training Accuracy: {mean_train:.4f}")
+    print(f"Mean Validation Accuracy: {mean_val:.4f}")
+
+plt.plot(C_values, mean_train_scores, label='Training Accuracy', marker='o', color='blue')
+plt.plot(C_values, mean_val_scores, label='Validation Accuracy', marker='o', color='red')
+plt.xscale('log')
+plt.xlabel('C')
+plt.ylabel('Accuracy')
+plt.title('Stacking CV Accuracy for Different Cs')
+plt.legend()
+plt.show()
+
+
